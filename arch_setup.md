@@ -29,7 +29,31 @@ sudo pacman -S --needed base-devel cmake curl git pciutils
 
 > `base-devel` covers everything `build-essential` provides on Debian/Ubuntu, plus development headers. `libcurl` ships with the `curl` package on Arch. No separate `-dev` package needed.
 
-### 1.2 Clone and build
+### 1.2 Install CUDA (NVIDIA GPU only, skip for CPU-only)
+
+```bash
+sudo pacman -S cuda
+```
+
+Then add CUDA to your PATH so cmake can find `nvcc`:
+
+**Fish (permanent):**
+
+```fish
+fish_add_path /opt/cuda/bin
+```
+
+**Bash/Zsh (permanent, add to `~/.bashrc` or `~/.zshrc`):**
+
+```bash
+export PATH=/opt/cuda/bin:$PATH
+```
+
+Open a new terminal after this, or run `source ~/.bashrc` / `exec fish` to reload your shell before continuing.
+
+> CachyOS ships CUDA in the standard repos. If `sudo pacman -S cuda` does not find it, try `yay -S cuda` from the AUR instead.
+
+### 1.3 Clone and build
 
 **With NVIDIA GPU (CUDA):**
 
@@ -55,9 +79,12 @@ cmake --build llama.cpp/build --config Release -j --clean-first \
 cp llama.cpp/build/bin/llama-* llama.cpp/
 ```
 
-> **CachyOS note:** If you run the CachyOS kernel (e.g. `linux-cachyos` or `linux-cachyos-lts`), CUDA builds work the same way. Just ensure `cuda` and `cudnn` are installed from the official repos or AUR:
+> If cmake still cannot find CUDA after installing it, pass the path explicitly:
 > ```bash
-> sudo pacman -S cuda cudnn
+> cmake llama.cpp -B llama.cpp/build \
+>     -DBUILD_SHARED_LIBS=OFF \
+>     -DGGML_CUDA=ON \
+>     -DCUDAToolkit_ROOT=/opt/cuda
 > ```
 
 ---
