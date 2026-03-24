@@ -4,8 +4,8 @@ This repo documents how to cut that dependency entirely. By pointing a single en
 The guides cover building llama.cpp from source, downloading quantized GGUF models from Hugging Face, configuring Claude Code to talk to your local server, and fixing a KV cache bug that ships with recent Claude Code versions that causes local inference to run 90% slower than it should.
 Two platform guides are included:
 
-arch-linux.md — Arch Linux, CachyOS, and Arch-based distros with NVIDIA GPU or CPU-only setups
-macos.md — macOS on Apple Silicon and Intel, using Metal acceleration
+arch_setup.md: Arch Linux, CachyOS, and Arch-based distros with NVIDIA GPU or CPU-only setups
+macos_setup.md: macOS on Apple Silicon and Intel, using Metal acceleration
 
 The examples use Qwen3.5-35B-A3B and GLM-4.7-Flash, both of which fit comfortably in 24 GB of VRAM or unified memory. Any model with an OpenAI-compatible API endpoint works the same way — swap the model path and alias and the rest of the setup is identical.
 
