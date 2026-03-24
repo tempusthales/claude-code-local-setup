@@ -6,20 +6,20 @@
 
 ## Overview
 
-Claude Code normally routes requests to Anthropic's servers. By setting a single environment variable (`ANTHROPIC_BASE_URL`), you redirect it to a local `llama-server` process instead. The guide uses **Qwen3.5-35B-A3B** or **GLM-4.7-Flash** — both fit in 24 GB VRAM and handle agentic coding tasks well.
+Claude Code normally routes requests to Anthropic's servers. By setting a single environment variable (`ANTHROPIC_BASE_URL`), you redirect it to a local `llama-server` process instead. The guide uses **Qwen3.5-35B-A3B** or **GLM-4.7-Flash**, both of which fit in 24 GB VRAM and handle agentic coding tasks well.
 
 ---
 
 ## Prerequisites
 
 - Arch Linux, CachyOS, or any Arch-based distro
-- NVIDIA GPU with 24 GB VRAM (e.g. RTX 4090, RTX 5070) — or CPU-only with enough RAM
+- NVIDIA GPU with 24 GB VRAM (e.g. RTX 4090, RTX 5070), or CPU-only with enough RAM
 - `yay` or `paru` AUR helper installed
 - Fish shell, bash, or zsh
 
 ---
 
-## Part 1 — Build llama.cpp
+## Part 1: Build llama.cpp
 
 ### 1.1 Install dependencies
 
@@ -27,7 +27,7 @@ Claude Code normally routes requests to Anthropic's servers. By setting a single
 sudo pacman -S --needed base-devel cmake curl git pciutils
 ```
 
-> `base-devel` covers everything `build-essential` provides on Debian/Ubuntu, plus development headers. `libcurl` ships with the `curl` package on Arch — no separate `-dev` package needed.
+> `base-devel` covers everything `build-essential` provides on Debian/Ubuntu, plus development headers. `libcurl` ships with the `curl` package on Arch. No separate `-dev` package needed.
 
 ### 1.2 Clone and build
 
@@ -62,7 +62,7 @@ cp llama.cpp/build/bin/llama-* llama.cpp/
 
 ---
 
-## Part 2 — Download a Model
+## Part 2: Download a Model
 
 Install the Hugging Face download tools:
 
@@ -70,11 +70,11 @@ Install the Hugging Face download tools:
 pip install huggingface_hub hf_transfer
 ```
 
-> **Note:** The `unsloth/` prefix in the download paths below is a Hugging Face account name — that is where these optimized GGUF model files are hosted. It is not something you need to install or sign up for.
+> **Note:** The `unsloth/` prefix in the download paths below is a Hugging Face account name. That is where these optimized GGUF model files are hosted. It is not something you need to install or sign up for.
 
 ### Option A: Qwen3.5-35B-A3B (recommended for agentic coding)
 
-Uses the **UD-Q4_K_XL** quant — a dynamically quantized GGUF with the best accuracy/size balance, fits ~24 GB VRAM.
+Uses the **UD-Q4_K_XL** quant, a dynamically quantized GGUF with the best accuracy/size balance. Fits ~24 GB VRAM.
 
 ```bash
 hf download unsloth/Qwen3.5-35B-A3B-GGUF \
@@ -82,7 +82,7 @@ hf download unsloth/Qwen3.5-35B-A3B-GGUF \
     --include "*UD-Q4_K_XL*"
 ```
 
-> Want a smarter but slower model? Use `Qwen3.5-27B` instead — drop `35B-A3B` in the repo name and include filter above. It runs at roughly half the token speed.
+> Want a smarter but slower model? Use `Qwen3.5-27B` instead. Drop `35B-A3B` in the repo name and include filter above. It runs at roughly half the token speed.
 
 ### Option B: GLM-4.7-Flash (fast, also 24 GB)
 
@@ -100,7 +100,7 @@ snapshot_download(
 
 ---
 
-## Part 3 — Start llama-server
+## Part 3: Start llama-server
 
 Run this in a dedicated terminal or inside `tmux`. Keep it running while you use Claude Code.
 
@@ -121,7 +121,7 @@ Run this in a dedicated terminal or inside `tmux`. Keep it running while you use
     --ctx-size 131072
 ```
 
-> **KV cache note:** `q8_0` reduces VRAM usage. Do **not** use `f16` KV cache with Qwen3.5 — multiple reports show accuracy degradation. Use `bf16` if you want full precision and have the VRAM headroom.
+> **KV cache note:** `q8_0` reduces VRAM usage. Do **not** use `f16` KV cache with Qwen3.5. Multiple reports show accuracy degradation. Use `bf16` if you want full precision and have the VRAM headroom.
 
 > **Disable thinking mode** (faster for agentic coding tasks):
 > ```bash
@@ -147,7 +147,7 @@ Run this in a dedicated terminal or inside `tmux`. Keep it running while you use
 
 ---
 
-## Part 4 — Install Claude Code
+## Part 4: Install Claude Code
 
 ```bash
 curl -fsSL https://claude.ai/install.sh | bash
@@ -157,34 +157,34 @@ curl -fsSL https://claude.ai/install.sh | bash
 
 ---
 
-## Part 5 — Configure Claude Code
+## Part 5: Configure Claude Code
 
 ### 5.1 Point Claude Code at your local server
 
 You need to set `ANTHROPIC_BASE_URL` so Claude Code talks to `llama-server` instead of Anthropic's API.
 
-**Fish shell — session only:**
+**Fish shell (session only):**
 
 ```fish
 set -x ANTHROPIC_BASE_URL "http://localhost:8001"
 set -x ANTHROPIC_API_KEY "sk-no-key-required"
 ```
 
-**Fish shell — persistent (survives new terminals):**
+**Fish shell (persistent, survives new terminals):**
 
 ```fish
 set -Ux ANTHROPIC_BASE_URL "http://localhost:8001"
 set -Ux ANTHROPIC_API_KEY "sk-no-key-required"
 ```
 
-**Bash/Zsh — session only:**
+**Bash/Zsh (session only):**
 
 ```bash
 export ANTHROPIC_BASE_URL="http://localhost:8001"
 export ANTHROPIC_API_KEY="sk-no-key-required"
 ```
 
-**Bash/Zsh — persistent (add to `~/.bashrc` or `~/.zshrc`):**
+**Bash/Zsh (persistent, add to `~/.bashrc` or `~/.zshrc`):**
 
 ```bash
 export ANTHROPIC_BASE_URL="http://localhost:8001"
@@ -199,11 +199,11 @@ export ANTHROPIC_API_KEY="sk-no-key-required"
 > unset ANTHROPIC_BASE_URL    # Bash/Zsh
 > ```
 
-### 5.2 Fix the KV Cache invalidation bug (important — 90% speed impact)
+### 5.2 Fix the KV Cache invalidation bug (important, 90% speed impact)
 
 Claude Code prepends an attribution header that invalidates the local model's KV cache, making inference roughly 90% slower. Fix it by editing `~/.claude/settings.json`.
 
-> **Note:** `export CLAUDE_CODE_ATTRIBUTION_HEADER=0` does **not** work — you must set it inside the settings file.
+> **Note:** `export CLAUDE_CODE_ATTRIBUTION_HEADER=0` does **not** work. You must set it inside the settings file.
 
 Create or update `~/.claude/settings.json`:
 
@@ -257,7 +257,7 @@ If Claude Code asks you to log in on first run, add these two keys to `~/.claude
 
 ---
 
-## Part 6 — Run Claude Code
+## Part 6: Run Claude Code
 
 Navigate to your project directory, then launch with the model alias that matches your running `llama-server`:
 
@@ -270,7 +270,7 @@ claude --model GLM-4.7-Flash
 claude --model Qwen3.5-35B-A3B
 ```
 
-**Skip permission prompts (full autonomous mode — use carefully):**
+**Skip permission prompts (full autonomous mode, use carefully):**
 
 ```bash
 claude --model GLM-4.7-Flash --dangerously-skip-permissions
@@ -289,7 +289,7 @@ results from the Hacker News API. You have access to 1 GPU.
 
 ---
 
-## Part 7 — VS Code / Cursor Integration
+## Part 7: VS Code / Cursor Integration
 
 Install the Claude Code extension directly:
 
@@ -308,7 +308,7 @@ If it still prompts for sign-in, add `"claudeCode.disableLoginPrompt": true` to 
 | Problem | Fix |
 |---|---|
 | `Unable to connect to API (ConnectionRefused)` | `llama-server` is not running, or wrong port. Check the server terminal. |
-| Claude Code is very slow (90% slower) | `CLAUDE_CODE_ATTRIBUTION_HEADER` not set in `~/.claude/settings.json` — see Part 5.2. |
+| Claude Code is very slow (90% slower) | `CLAUDE_CODE_ATTRIBUTION_HEADER` not set in `~/.claude/settings.json`. See Part 5.2. |
 | `missing ANTHROPIC_API_KEY` error | `set -x ANTHROPIC_API_KEY "sk-no-key-required"` |
 | Sign-in loop on first launch | Add `hasCompletedOnboarding` and `primaryApiKey` to `~/.claude.json` |
 | Model output loops or is garbled | Update llama.cpp (a bug in the KV cache calculation was fixed; re-download GGUFs too) |
@@ -322,17 +322,17 @@ If it still prompts for sign-in, add `"claudeCode.disableLoginPrompt": true` to 
 You can run multiple models on different ports simultaneously and switch between them:
 
 ```bash
-# Terminal 1 — Qwen3.5 on port 8001
+# Terminal 1: Qwen3.5 on port 8001
 ./llama.cpp/llama-server --model Qwen3.5-35B-A3B-GGUF/Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf --alias "Qwen3.5-35B-A3B" --port 8001 ...
 
-# Terminal 2 — GLM-4.7-Flash on port 8002
+# Terminal 2: GLM-4.7-Flash on port 8002
 ./llama.cpp/llama-server --model GLM-4.7-Flash-GGUF/GLM-4.7-Flash-UD-Q4_K_XL.gguf --alias "GLM-4.7-Flash" --port 8002 ...
 ```
 
 Then point Claude Code at whichever port you want:
 
 ```fish
-# Fish — switch quickly
+# Fish: switch quickly
 set -x ANTHROPIC_BASE_URL "http://localhost:8001"   # switch to Qwen3.5
 set -x ANTHROPIC_BASE_URL "http://localhost:8002"   # switch to GLM
 ```
