@@ -4,9 +4,32 @@
 
 ---
 
-## How it works
+## Read this first
 
-Claude Code normally routes every request to Anthropic's servers. By setting one environment variable (`ANTHROPIC_BASE_URL`), you redirect it to a local `llama-server` process running on your own hardware instead.
+This setup works, but there is an important limitation to understand before you invest time in it.
+
+**Claude Code sends very large prompts.** Every request includes your codebase context, tool definitions, and conversation history, often 10,000-20,000 tokens or more. Local models have to process all of that on your hardware before generating a single token of response. On a consumer GPU with 12-16 GB VRAM, that means minutes per request, not seconds.
+
+**Who this works well for:**
+- 24 GB+ VRAM (RTX 3090, 4090, 5090) where the 35B model fits fully on GPU
+- Apple Silicon with 32 GB+ unified memory
+- Anyone who wants local chat inference or fine-tuning experiments
+- Testing prompts offline before using the real API
+
+**Who should just use the Anthropic API:**
+- Anyone with less than 24 GB VRAM
+- Anyone who needs Claude Code to be responsive for day-to-day coding
+
+You can always switch between local and Anthropic's API instantly with one command:
+
+```fish
+set -Ux ANTHROPIC_BASE_URL "http://localhost:8001"   # use local model
+set -e ANTHROPIC_BASE_URL                             # switch back to Anthropic
+```
+
+---
+
+## How it works
 
 ```
 Claude Code  →  llama-server (port 8001)  →  GGUF model on disk
@@ -17,7 +40,7 @@ Claude Code  →  llama-server (port 8001)  →  GGUF model on disk
 ## Prerequisites
 
 - Arch Linux, CachyOS, or any Arch-based distro
-- NVIDIA GPU (12 GB+ VRAM recommended) or CPU with 32 GB+ RAM
+- NVIDIA GPU (24 GB+ VRAM recommended for usable performance)
 - Fish, bash, or zsh
 
 ---
@@ -78,22 +101,22 @@ cp llama.cpp/build/bin/llama-* llama.cpp/
 
 ## Part 4: Download a model
 
-The guide uses **Qwen3.5-35B-A3B**, a Mixture of Experts (MoE) model. Despite the "35B" name, only 3B parameters are active during any single inference pass. This is why it fits in far less VRAM than a traditional dense 35B model. The Q4_K_XL quant is around 22 GB on disk.
+The guide uses **Qwen3.5-35B-A3B**, a Mixture of Experts (MoE) model. Despite the "35B" name, only 3B parameters are active during any single inference pass. The Q4_K_XL quant is around 22 GB on disk.
 
-Check your GPU VRAM first:
+Check your GPU VRAM:
 ```bash
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 ```
 
-| VRAM | Pick this option |
+| VRAM | Expected performance |
 |---|---|
-| 24 GB+ | Option 1: best quality, fully on GPU |
-| 12 GB | Option 2: same quality, splits across GPU and RAM |
-| 12 GB (speed priority) | Option 3: smaller model, fully on GPU |
+| 24 GB+ | Good. Model fits fully on GPU. Responses in seconds. |
+| 12-16 GB | Poor for agentic coding. Minutes per request due to RAM offloading. Fine for chat. |
+| CPU only | Very slow. Not recommended for Claude Code. |
 
 > The `unsloth/` prefix in the URLs below is a Hugging Face account name, not software you need to install.
 
-### Options 1 and 2: Qwen3.5-35B-A3B (same file for both)
+### Qwen3.5-35B-A3B (24 GB+ VRAM recommended)
 
 ```bash
 mkdir -p /mnt/llm-storage/llm-models/huggingface/Qwen3.5-35B-A3B-GGUF
@@ -103,7 +126,7 @@ aria2c -x 16 -s 16 \
     "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf"
 ```
 
-### Option 3: Qwen3.5-9B
+### Qwen3.5-9B (12 GB VRAM, fits on GPU but still slow for agentic use)
 
 ```bash
 mkdir -p /mnt/llm-storage/llm-models/huggingface/Qwen3.5-9B-GGUF
@@ -119,9 +142,9 @@ aria2c -x 16 -s 16 \
 
 ## Part 5: Start llama-server
 
-Run llama-server in a tmux session so it stays running in the background without taking over your terminal. Replace `YOUR_USERNAME` with your actual username (e.g. `gjp`).
+Run llama-server in a tmux session so it stays running in the background. Replace `YOUR_USERNAME` with your actual username.
 
-### Option 1: Qwen3.5-35B-A3B (24 GB+ VRAM)
+### Qwen3.5-35B-A3B (24 GB+ VRAM)
 
 ```bash
 tmux new-session -d -s llama -c /home/YOUR_USERNAME/GitHub \
@@ -135,23 +158,7 @@ tmux new-session -d -s llama -c /home/YOUR_USERNAME/GitHub \
     2>&1 | tee /tmp/llama-server.log"'
 ```
 
-### Option 2: Qwen3.5-35B-A3B (12 GB VRAM, GPU+RAM split)
-
-Same file, reduced context size. The `--fit on` flag automatically offloads inactive expert layers to RAM while keeping active compute on the GPU. Because only 3B parameters are active at any time (MoE), the speed penalty is manageable.
-
-```bash
-tmux new-session -d -s llama -c /home/YOUR_USERNAME/GitHub \
-'bash -c "./llama.cpp/llama-server \
-    --model /mnt/llm-storage/llm-models/huggingface/Qwen3.5-35B-A3B-GGUF/Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf \
-    --alias Qwen3.5-35B-A3B \
-    --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.00 \
-    --port 8001 --kv-unified \
-    --cache-type-k q8_0 --cache-type-v q8_0 \
-    --flash-attn on --fit on --ctx-size 65536 \
-    2>&1 | tee /tmp/llama-server.log"'
-```
-
-### Option 3: Qwen3.5-9B (12 GB VRAM, fastest)
+### Qwen3.5-9B (12 GB VRAM)
 
 ```bash
 tmux new-session -d -s llama -c /home/YOUR_USERNAME/GitHub \
@@ -177,8 +184,6 @@ Press `Ctrl+C` to stop watching the log. The server keeps running.
 - Reattach to the server session: `tmux attach -t llama`
 - Detach without stopping it: `Ctrl+B` then `D`
 - Stop the server: `tmux kill-session -t llama`
-
-> The first request after startup takes longer than usual while the model warms up its KV cache. Subsequent requests are faster.
 
 ---
 
@@ -299,7 +304,7 @@ The extension picks up `ANTHROPIC_BASE_URL` from your environment automatically.
 | Problem | Fix |
 |---|---|
 | `Unable to connect to API` | llama-server is not running. Check with `tail -20 /tmp/llama-server.log` |
-| Slow responses | Confirm `CLAUDE_CODE_ATTRIBUTION_HEADER` is set in `~/.claude/settings.json` |
+| Slow responses | Expected on 12-16 GB VRAM. See the note at the top of this guide. |
 | `missing ANTHROPIC_API_KEY` | `set -x ANTHROPIC_API_KEY "sk-no-key-required"` |
 | Sign-in loop on first launch | Add `hasCompletedOnboarding` and `primaryApiKey` to `~/.claude.json` |
 | Model output is garbled | Update llama.cpp and re-download the GGUF |
