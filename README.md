@@ -57,3 +57,30 @@ disk.
 | GPU | NVIDIA 24 GB+ VRAM recommended | Apple Silicon 32 GB+ unified memory recommended |
 | Minimum (chat only) | 12 GB VRAM + 32 GB RAM | 16 GB unified memory |
 | Storage | 25 GB free for model | 25 GB free for model |
+
+## Apple Silicon recommendations
+
+On Apple Silicon, unified memory serves as both RAM and GPU memory. The model and its KV
+cache all share the same pool, so more unified memory means faster, more capable inference.
+
+| Chip | Max Memory | Claude Code suitability |
+|---|---|---|
+| M5 | 32 GB | Marginal. Model fits but leaves little headroom for context. |
+| M5 Pro | 64 GB | Good. Comfortable headroom for the 35B model and large contexts. |
+| M5 Max | 128 GB | Excellent. Room for larger models and very long contexts. |
+| M4 Pro | 48 GB | Good. The 35B model fits well with room for context. |
+| M4 Max | 128 GB | Excellent. Same as M5 Max in practical terms for this use case. |
+| M4 / M3 Pro and below | 24 GB or less | Not recommended for Claude Code. Usable for chat only. |
+
+**The sweet spot is M5 Pro with 48 GB or M4 Max with 48 GB.** Both give you the full 35B
+model loaded comfortably plus enough headroom for Claude Code's large context prompts.
+Responses come in seconds rather than minutes.
+
+The M5 Pro supports up to 64 GB unified memory with 307 GB/s bandwidth, and the M5 Max
+supports up to 128 GB with up to 614 GB/s bandwidth. The higher bandwidth on Max chips
+also means faster token generation since more memory bandwidth is available to stream model
+weights during inference.
+
+If you are buying new hardware specifically for this use case, the **M5 Pro 48 GB MacBook
+Pro** is the minimum worth considering. The **M5 Max 64 GB** configuration gives you
+meaningful headroom to grow into larger models.
