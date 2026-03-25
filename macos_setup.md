@@ -1,21 +1,21 @@
-# Running Local LLMs with Claude Code on macOS
+# Running Local LLMs with Claude Code on macOS (Apple Silicon)
 
-> This guide walks you through connecting open-source LLMs to Claude Code entirely locally using `llama.cpp` and quantized GGUFs on macOS. Works on both Apple Silicon (M-series) and Intel Macs. No API bills. No cloud.
+> This guide walks you through connecting open-source LLMs to Claude Code entirely locally using `llama.cpp` and quantized GGUFs on Apple Silicon. No API bills. No cloud.
 
 ---
 
 ## Overview
 
-Claude Code normally routes requests to Anthropic's servers. By setting `ANTHROPIC_BASE_URL`, you redirect it to a local `llama-server` process instead. macOS uses Apple Metal for GPU acceleration. No CUDA needed. A 24 GB unified memory Mac (M2 Pro, M3 Pro, M4 Pro, or better) can run the recommended models comfortably.
+Claude Code normally routes requests to Anthropic's servers. By setting `ANTHROPIC_BASE_URL`, you redirect it to a local `llama-server` process instead. Apple Silicon uses Metal for GPU acceleration automatically. No CUDA, no drivers, no extra setup required.
 
 ---
 
 ## Prerequisites
 
-- macOS 13 Ventura or later (Apple Silicon or Intel)
+- macOS 13 Ventura or later (Apple Silicon)
 - [Homebrew](https://brew.sh) installed
-- 24 GB+ unified memory for the recommended 35B-class models (smaller quants work on 16 GB)
 - Xcode Command Line Tools: `xcode-select --install`
+- 24 GB+ unified memory recommended for the 35B-class models (16 GB works with smaller quants)
 
 ---
 
@@ -24,10 +24,10 @@ Claude Code normally routes requests to Anthropic's servers. By setting `ANTHROP
 ### 1.1 Install dependencies
 
 ```bash
-brew install cmake curl git
+brew install cmake curl git aria2 tmux
 ```
 
-> Metal GPU support is on by default on macOS. You do not need any extra flags. The build will automatically accelerate on Apple Silicon and Intel Macs with a supported GPU.
+> Metal GPU support is on by default on Apple Silicon. The build picks it up automatically. No extra flags needed.
 
 ### 1.2 Clone and build
 
@@ -41,102 +41,193 @@ cmake --build llama.cpp/build --config Release -j --clean-first \
 cp llama.cpp/build/bin/llama-* llama.cpp/
 ```
 
-> Setting `-DGGML_CUDA=OFF` is correct on macOS. Metal acceleration is picked up automatically by the build system. You do not need to pass any additional Metal flag.
+> `-DGGML_CUDA=OFF` is correct on macOS. Metal acceleration is picked up automatically. You do not need to pass any additional Metal flag.
 
 ---
 
-## Part 2: Download a Model
+## Part 2: Choose Your Model
 
-Install the Hugging Face download tools:
+**A note on Qwen3.5-35B-A3B and memory:** Despite the "35B" in the name, this is a Mixture of Experts (MoE) model. The "A3B" means only 3 billion parameters are active during any single inference pass. The other parameters are organized into expert layers that sit idle until needed. This is why the model fits in far less memory than a traditional dense 35B model would require. The Q4_K_XL quant lands around 22 GB on disk.
 
-```bash
-pip3 install huggingface_hub hf_transfer
-```
-
-> **Note:** The `unsloth/` prefix in the download paths below is a Hugging Face account name. That is where these optimized GGUF model files are hosted. It is not something you need to install or sign up for.
-
-> If you use a virtual environment manager like `pyenv` or `conda`, activate your environment first.
-
-### Option A: Qwen3.5-35B-A3B (recommended for agentic coding)
-
-Uses the **UD-Q4_K_XL** quant, a dynamically quantized GGUF with the best accuracy/size balance. Requires ~24 GB unified memory.
+Pick one of the three options below based on your unified memory:
 
 ```bash
-hf download unsloth/Qwen3.5-35B-A3B-GGUF \
-    --local-dir unsloth/Qwen3.5-35B-A3B-GGUF \
-    --include "*UD-Q4_K_XL*"
+system_profiler SPHardwareDataType | grep Memory
 ```
 
-> **16 GB Mac?** Use the 2-bit quant instead (lower accuracy but fits): `--include "*UD-Q2_K_XL*"`
->
-> **Need a smarter model?** `Qwen3.5-27B` is stronger but runs at roughly half the token speed. Substitute `27B` for `35B-A3B` in the repo name and include pattern.
+| Unified Memory | Recommended option |
+|---|---|
+| 24 GB+ | Option 1: Qwen3.5-35B-A3B Q4_K_XL (best quality, fully in memory) |
+| 16 GB | Option 2: Qwen3.5-35B-A3B Q4_K_XL split across GPU and RAM (good quality, manageable speed due to MoE) |
+| 16 GB (speed priority) | Option 3: Qwen3.5-9B (fits fully in memory, fastest) |
 
-### Option B: GLM-4.7-Flash (fast, also ~24 GB)
+> **Note:** The `unsloth/` prefix in the download URLs below is a Hugging Face account name. That is where these optimized GGUF model files are hosted.
 
-```python
-import os
-os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
-from huggingface_hub import snapshot_download
+Create a folder to store your models:
 
-snapshot_download(
-    repo_id = "unsloth/GLM-4.7-Flash-GGUF",
-    local_dir = "unsloth/GLM-4.7-Flash-GGUF",
-    allow_patterns = ["*UD-Q4_K_XL*"],
-)
+```bash
+mkdir -p ~/models
+```
+
+### Option 1: Qwen3.5-35B-A3B Q4_K_XL (24 GB+ unified memory, best quality)
+
+The full-quality quant. Fits entirely in unified memory on a 24 GB Mac. Best output for agentic coding tasks.
+
+```bash
+aria2c -x 16 -s 16 \
+    -d ~/models \
+    -o Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf \
+    "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf"
+```
+
+### Option 2: Qwen3.5-35B-A3B Q4_K_XL (16 GB unified memory, memory split)
+
+Same Q4_K_XL quant as Option 1. On a 16 GB Mac, llama.cpp offloads the inactive expert layers to swap while keeping active compute in unified memory. Because only 3B parameters are active at any time (MoE), the performance penalty is smaller than it would be with a dense model. The download is identical to Option 1.
+
+```bash
+aria2c -x 16 -s 16 \
+    -d ~/models \
+    -o Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf \
+    "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf"
+```
+
+> `--fit on` in the `llama-server` command (Part 3) handles the memory split automatically.
+
+### Option 3: Qwen3.5-9B (16 GB unified memory, fastest)
+
+The 9B model fits entirely within 16 GB unified memory with room to spare for context. Noticeably less capable than the 35B variants but responds quickly, which makes it practical for fast iteration during coding sessions.
+
+```bash
+aria2c -x 16 -s 16 \
+    -d ~/models \
+    -o Qwen3.5-9B-UD-Q4_K_XL.gguf \
+    "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-UD-Q4_K_XL.gguf"
 ```
 
 ---
 
 ## Part 3: Start llama-server
 
-Run this in a dedicated terminal window or `tmux` pane. Leave it running while you use Claude Code.
+Run llama-server in a tmux session so it does not take over your terminal:
 
-### Qwen3.5-35B-A3B
+> **KV cache note:** `q8_0` reduces memory usage. Do **not** use `f16` KV cache with Qwen3.5. Multiple reports show accuracy degradation. Use `bf16` if you want full precision and have the memory headroom.
 
-```bash
-./llama.cpp/llama-server \
-    --model unsloth/Qwen3.5-35B-A3B-GGUF/Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf \
-    --alias "Qwen3.5-35B-A3B" \
-    --temp 0.6 \
-    --top-p 0.95 \
-    --top-k 20 \
-    --min-p 0.00 \
-    --port 8001 \
-    --kv-unified \
-    --cache-type-k q8_0 --cache-type-v q8_0 \
-    --flash-attn on --fit on \
-    --ctx-size 131072
-```
-
-> **KV cache:** `q8_0` saves unified memory. Avoid `f16` KV cache with Qwen3.5. Reports show accuracy degradation. Use `bf16` if you want full precision and have the memory headroom.
-
-> **Disable thinking mode** (faster for agentic tasks):
+> **Disable thinking mode** (faster for agentic coding tasks, add to any command below):
 > ```bash
 > --chat-template-kwargs "{\"enable_thinking\": false}"
 > ```
 
-> **Watching model load:** First startup loads the full model into unified memory (20+ GB). Watch Activity Monitor (Memory tab). The footprint will climb for 10–30 seconds before the server is ready.
-
-### GLM-4.7-Flash
+### Option 1: Qwen3.5-35B-A3B Q4_K_XL (24 GB+ unified memory)
 
 ```bash
-./llama.cpp/llama-server \
-    --model unsloth/GLM-4.7-Flash-GGUF/GLM-4.7-Flash-UD-Q4_K_XL.gguf \
-    --alias "GLM-4.7-Flash" \
-    --temp 1.0 \
-    --top-p 0.95 \
-    --min-p 0.01 \
-    --port 8001 \
-    --kv-unified \
+tmux new-session -d -s llama 'bash -c "./llama.cpp/llama-server \
+    --model ~/models/Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf \
+    --alias Qwen3.5-35B-A3B \
+    --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.00 \
+    --port 8001 --kv-unified \
     --cache-type-k q8_0 --cache-type-v q8_0 \
     --flash-attn on --fit on \
-    --batch-size 4096 --ubatch-size 1024 \
-    --ctx-size 131072
+    --ctx-size 131072 \
+    2>&1 | tee /tmp/llama-server.log"'
 ```
+
+### Option 2: Qwen3.5-35B-A3B Q4_K_XL (16 GB unified memory, memory split)
+
+Same file as Option 1. The `--fit on` flag handles the memory split automatically. Reduce `--ctx-size` if the server fails to start.
+
+```bash
+tmux new-session -d -s llama 'bash -c "./llama.cpp/llama-server \
+    --model ~/models/Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf \
+    --alias Qwen3.5-35B-A3B \
+    --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.00 \
+    --port 8001 --kv-unified \
+    --cache-type-k q8_0 --cache-type-v q8_0 \
+    --flash-attn on --fit on \
+    --ctx-size 65536 \
+    2>&1 | tee /tmp/llama-server.log"'
+```
+
+### Option 3: Qwen3.5-9B (16 GB unified memory, fastest)
+
+```bash
+tmux new-session -d -s llama 'bash -c "./llama.cpp/llama-server \
+    --model ~/models/Qwen3.5-9B-UD-Q4_K_XL.gguf \
+    --alias Qwen3.5-9B \
+    --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.00 \
+    --port 8001 --kv-unified \
+    --cache-type-k q8_0 --cache-type-v q8_0 \
+    --flash-attn on --fit on \
+    --ctx-size 131072 \
+    2>&1 | tee /tmp/llama-server.log"'
+```
+
+Watch the log until you see `server is listening on http://127.0.0.1:8001`:
+
+```bash
+tail -f /tmp/llama-server.log
+```
+
+To reattach to the tmux session: `tmux attach -t llama`
+To detach without stopping it: `Ctrl+B` then `D`
 
 ---
 
-## Part 4: Install Claude Code
+## Part 4: Install Unsloth Studio (optional chat UI)
+
+Unsloth Studio is a web UI for chatting with and fine-tuning local models. It runs via Docker Desktop on macOS.
+
+> **Note:** On Apple Silicon, Unsloth Studio supports GGUF chat inference. GPU training is not yet available on macOS (MLX support is coming).
+
+### 4.1 Install Docker Desktop
+
+Download and install [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/). Open it and wait for it to finish starting before continuing.
+
+### 4.2 Start Unsloth Studio
+
+```bash
+docker run -d \
+    -e JUPYTER_PASSWORD="yourpassword" \
+    -p 8888:8888 -p 8000:8000 -p 2222:22 \
+    -v "$(pwd)/work:/workspace/work" \
+    -v "$HOME/models:/root/models" \
+    --name unsloth-studio \
+    unsloth/unsloth
+```
+
+> The `-v "$HOME/models:/root/models"` line mounts your models folder into the container so Unsloth Studio can access the GGUF you already downloaded.
+
+> macOS does not use `--gpus all` since Docker Desktop on macOS does not support GPU passthrough to containers. The container runs in CPU/chat-only mode.
+
+### 4.3 Open the UI
+
+Open `http://localhost:8000` in your browser.
+
+> `http://localhost:8888` is JupyterLab, not the Studio UI. Use port 8000.
+
+### 4.4 Load your model
+
+On the welcome screen, click **Skip to Chat** in the bottom left. In the model selector, search for your model or point to a local path:
+
+```
+/root/models/Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf
+```
+
+### 4.5 Managing the container
+
+```bash
+docker stop unsloth-studio    # stop without removing
+docker start unsloth-studio   # start again later
+docker rm unsloth-studio      # remove entirely (stop first)
+```
+
+> Unsloth Studio runs its own internal llama-server. Stop your existing tmux llama-server session first to avoid port conflicts:
+> ```bash
+> tmux kill-session -t llama
+> ```
+
+---
+
+## Part 5: Install Claude Code
 
 **Option A: Homebrew:**
 
@@ -150,11 +241,27 @@ brew install --cask claude-code
 curl -fsSL https://claude.ai/install.sh | bash
 ```
 
+Verify it installed:
+
+```bash
+claude --version
+```
+
 ---
 
-## Part 5: Configure Claude Code
+## Part 6: Configure Claude Code
 
-### 5.1 Point Claude Code at your local server
+### 6.1 Start llama-server
+
+Claude Code needs llama-server running to route requests to your local model. Use the tmux command from Part 3 that matches your memory configuration. Once started, confirm it is ready:
+
+```bash
+tail -f /tmp/llama-server.log
+```
+
+Wait for `server is listening on http://127.0.0.1:8001` before continuing.
+
+### 6.2 Point Claude Code at your local server
 
 **Zsh (macOS default, session only):**
 
@@ -194,9 +301,9 @@ set -Ux ANTHROPIC_API_KEY "sk-no-key-required"
 > set -e ANTHROPIC_BASE_URL   # Fish
 > ```
 
-### 5.2 Fix the KV Cache invalidation bug (important, 90% speed impact)
+### 6.3 Fix the KV Cache invalidation bug (important, 90% speed impact)
 
-Claude Code prepends an attribution header that breaks the local model's KV cache, causing inference to run roughly 90% slower. Fix it by editing `~/.claude/settings.json`.
+Claude Code prepends an attribution header that invalidates the local model's KV cache, making inference much slower. Fix it by editing `~/.claude/settings.json`.
 
 > `export CLAUDE_CODE_ATTRIBUTION_HEADER=0` does **not** work. The setting must live inside the JSON config file.
 
@@ -221,7 +328,7 @@ Create or update `~/.claude/settings.json`:
 }
 ```
 
-**One-liner to write the file (Zsh/Bash):**
+**One-liner (Zsh/Bash):**
 
 ```bash
 mkdir -p ~/.claude && cat > ~/.claude/settings.json << 'EOF'
@@ -260,7 +367,7 @@ echo '{
 }' > ~/.claude/settings.json
 ```
 
-### 5.3 Handle the sign-in prompt (if it appears)
+### 6.4 Handle the sign-in prompt (if it appears)
 
 If Claude Code asks you to log in on first run, add these two keys to `~/.claude.json`:
 
@@ -273,23 +380,19 @@ If Claude Code asks you to log in on first run, add these two keys to `~/.claude
 
 ---
 
-## Part 6: Run Claude Code
+## Part 7: Run Claude Code
 
-Navigate to your project directory, then launch with the model alias that matches your running `llama-server`:
+Navigate to your project directory, then launch with the model alias:
 
 ```bash
-# GLM-4.7-Flash
 cd ~/your-project
-claude --model GLM-4.7-Flash
-
-# Qwen3.5-35B-A3B
 claude --model Qwen3.5-35B-A3B
 ```
 
 **Skip permission prompts (full autonomous mode, use carefully):**
 
 ```bash
-claude --model GLM-4.7-Flash --dangerously-skip-permissions
+claude --model Qwen3.5-35B-A3B --dangerously-skip-permissions
 ```
 
 > This lets Claude Code execute commands, write files, and run code without confirmation. Only use it in a sandboxed project directory.
@@ -300,12 +403,12 @@ claude --model GLM-4.7-Flash --dangerously-skip-permissions
 You can only work in the cwd project/. Do not search for CLAUDE.md - this is it.
 Create a Python virtual environment via `python -m venv venv` then activate it.
 Install dependencies and write a simple script that fetches and prints the top 5
-results from the Hacker News API. You have access to 1 GPU.
+results from the Hacker News API.
 ```
 
 ---
 
-## Part 7: VS Code / Cursor Integration
+## Part 8: VS Code / Cursor Integration
 
 Install the Claude Code extension:
 
@@ -314,40 +417,6 @@ Install the Claude Code extension:
 - Or press `Cmd+Shift+X`, search **Claude Code**, and click **Install**
 
 The extension inherits `ANTHROPIC_BASE_URL` from your shell environment. If it still prompts for sign-in, add `"claudeCode.disableLoginPrompt": true` to your VS Code `settings.json`.
-
----
-
-## Running Multiple Models
-
-You can serve multiple models on different ports simultaneously:
-
-```bash
-# Terminal 1: Qwen3.5 on port 8001
-./llama.cpp/llama-server --model Qwen3.5-35B-A3B-GGUF/Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf --alias "Qwen3.5-35B-A3B" --port 8001 ...
-
-# Terminal 2: GLM-4.7-Flash on port 8002
-./llama.cpp/llama-server --model GLM-4.7-Flash-GGUF/GLM-4.7-Flash-UD-Q4_K_XL.gguf --alias "GLM-4.7-Flash" --port 8002 ...
-```
-
-Switch between them by changing the env var:
-
-```zsh
-export ANTHROPIC_BASE_URL="http://localhost:8001"   # switch to Qwen3.5
-export ANTHROPIC_BASE_URL="http://localhost:8002"   # switch to GLM
-```
-
-Or with a shell function in `~/.zshrc`:
-
-```zsh
-cclocal() {
-  local port=${1:-8001}
-  ANTHROPIC_BASE_URL="http://localhost:${port}" \
-  ANTHROPIC_API_KEY="sk-no-key-required" \
-  claude "${@:2}"
-}
-```
-
-Then: `cclocal` or `cclocal 8002`
 
 ---
 
@@ -366,28 +435,63 @@ Reducing context size frees memory and improves token speed.
 
 ---
 
+## Running Multiple Models
+
+You can serve multiple models on different ports simultaneously:
+
+```bash
+# Terminal 1: Qwen3.5 on port 8001
+tmux new-session -d -s qwen 'bash -c "./llama.cpp/llama-server --model ~/models/Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf --alias Qwen3.5-35B-A3B --port 8001 ..."'
+
+# Terminal 2: Qwen3.5-9B on port 8002
+tmux new-session -d -s qwen9b 'bash -c "./llama.cpp/llama-server --model ~/models/Qwen3.5-9B-UD-Q4_K_XL.gguf --alias Qwen3.5-9B --port 8002 ..."'
+```
+
+Switch between them:
+
+```zsh
+export ANTHROPIC_BASE_URL="http://localhost:8001"   # switch to 35B
+export ANTHROPIC_BASE_URL="http://localhost:8002"   # switch to 9B
+```
+
+Or add a shell function to `~/.zshrc`:
+
+```zsh
+cclocal() {
+  local port=${1:-8001}
+  ANTHROPIC_BASE_URL="http://localhost:${port}" \
+  ANTHROPIC_API_KEY="sk-no-key-required" \
+  claude "${@:2}"
+}
+```
+
+Then: `cclocal` or `cclocal 8002`
+
+---
+
 ## Troubleshooting
 
 | Problem | Fix |
 |---|---|
-| `Unable to connect to API (ConnectionRefused)` | `llama-server` is not running, or wrong port. Check that terminal. |
-| Claude Code is very slow (90% slower) | `CLAUDE_CODE_ATTRIBUTION_HEADER` not set in `~/.claude/settings.json`. See Part 5.2. |
+| `Unable to connect to API (ConnectionRefused)` | `llama-server` is not running, or wrong port. Run `tail -f /tmp/llama-server.log` to check. |
+| Claude Code is very slow | `CLAUDE_CODE_ATTRIBUTION_HEADER` not set in `~/.claude/settings.json`. See Part 6.3. |
 | `missing ANTHROPIC_API_KEY` error | `export ANTHROPIC_API_KEY="sk-no-key-required"` |
 | Sign-in loop on first launch | Add `hasCompletedOnboarding` and `primaryApiKey` to `~/.claude.json` |
 | Model output loops or is garbled | Update llama.cpp and re-download the GGUF files (a KV cache bug was patched) |
-| Out of unified memory / server won't start | Reduce `--ctx-size` (try halving it) |
-| Downloads stall on Hugging Face | Try `pip3 install hf_transfer` and set `HF_HUB_ENABLE_HF_TRANSFER=1`, or download via the Hugging Face web UI. |
+| Out of unified memory / server won't start | Reduce `--ctx-size` (try halving it). See the context size table above. |
+| Download stalls or is slow | Use `aria2c -x 16 -s 16 -o <filename> <url>`. If the URL has expired, grab a fresh one from the Hugging Face model page. |
 | `cmake` not found | Run `xcode-select --install` then `brew install cmake` |
-| `hf` command not found | `pip3 install huggingface_hub hf_transfer` and ensure `~/Library/Python/3.x/bin` is on `$PATH` |
+| Unsloth Studio shows no GPU | Expected on macOS. Docker Desktop does not support GPU passthrough. Chat inference still works via CPU/Metal through llama-server. |
 
 ---
 
 ## References
 
 - [Unsloth Claude Code Guide](https://unsloth.ai/docs/basics/claude-code)
+- [Unsloth Studio Install Guide](https://unsloth.ai/docs/new/studio/install)
 - [Unsloth Model Catalog](https://unsloth.ai/docs/get-started/unsloth-model-catalog)
 - [Qwen3.5 Guide](https://unsloth.ai/docs/models/qwen3.5)
-- [GLM-4.7-Flash Guide](https://unsloth.ai/docs/models/glm-4.7-flash)
 - [Unsloth Dynamic GGUFs](https://unsloth.ai/docs/basics/unsloth-dynamic-2.0-ggufs)
 - [llama.cpp GitHub](https://github.com/ggml-org/llama.cpp)
 - [Claude Code docs](https://code.claude.com/docs)
+- [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)
