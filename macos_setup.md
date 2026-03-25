@@ -308,12 +308,14 @@ The extension picks up `ANTHROPIC_BASE_URL` from your environment automatically.
 
 ## Unified memory context size reference
 
-| Unified Memory | Recommended `--ctx-size` |
-|---|---|
-| 16 GB | 32768 (32K) |
-| 24 GB | 65536-131072 (64K-128K) |
-| 36 GB | 131072 (128K) |
-| 64 GB+ | 262144 (256K) |
+| Unified Memory | Chip examples | Recommended `--ctx-size` | Claude Code suitability |
+|---|---|---|---|
+| 16 GB | M5, M4 (base) | 16384 (16K) | Chat only. Too slow for agentic use. |
+| 24 GB | M5, M4 Pro (base) | 32768 (32K) | Marginal. Expect slow responses. |
+| 32 GB | M5, M4 Max (base) | 65536 (64K) | Borderline. Workable for short sessions. |
+| 48 GB | M5 Pro, M4 Pro | 131072 (128K) | Good. Recommended minimum for Claude Code. |
+| 64 GB | M5 Pro, M4 Max, M5 Max (base) | 131072 (128K) | Great. Comfortable headroom. |
+| 128 GB | M5 Max, M4 Max | 262144 (256K) | Excellent. Room for larger models too. |
 
 ---
 
