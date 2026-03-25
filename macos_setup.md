@@ -4,6 +4,30 @@
 
 ---
 
+## Read this first
+
+This setup works, but there is an important limitation to understand before you invest time in it.
+
+**Claude Code sends very large prompts.** Every request includes your codebase context, tool definitions, and conversation history, often 10,000-20,000 tokens or more. Local models have to process all of that on your hardware before generating a single token of response. On a Mac with less than 32 GB unified memory, that means minutes per request, not seconds.
+
+**Who this works well for:**
+- 32 GB+ unified memory (M2 Max, M3 Max, M4 Max or better)
+- Anyone who wants local chat inference or fine-tuning experiments
+- Testing prompts offline before using the real API
+
+**Who should just use the Anthropic API:**
+- Anyone with less than 32 GB unified memory
+- Anyone who needs Claude Code to be responsive for day-to-day coding
+
+You can always switch between local and Anthropic's API instantly:
+
+```zsh
+export ANTHROPIC_BASE_URL="http://localhost:8001"   # use local model
+unset ANTHROPIC_BASE_URL                              # switch back to Anthropic
+```
+
+---
+
 ## How it works
 
 Claude Code normally routes every request to Anthropic's servers. By setting one environment variable (`ANTHROPIC_BASE_URL`), you redirect it to a local `llama-server` process running on your own hardware instead.
@@ -60,11 +84,11 @@ Check your unified memory first:
 system_profiler SPHardwareDataType | grep Memory
 ```
 
-| Unified Memory | Pick this option |
+| Unified Memory | Expected performance |
 |---|---|
-| 24 GB+ | Option 1: best quality, fully in memory |
-| 16 GB | Option 2: same quality, splits across GPU and swap |
-| 16 GB (speed priority) | Option 3: smaller model, fully in memory |
+| 32 GB+ | Good. Model fits fully in unified memory. Responses in seconds. |
+| 24 GB | Marginal. May offload some layers. Responses slower than ideal. |
+| 16 GB | Poor for agentic coding. Minutes per request. Fine for chat. |
 
 Create a folder to store your models:
 ```bash
