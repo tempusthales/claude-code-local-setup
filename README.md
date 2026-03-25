@@ -13,33 +13,31 @@ of the month.
 
 Both guides walk through the full setup end to end:
 
+- Installing build dependencies and (on Linux) CUDA
 - Building `llama.cpp` from source with GPU acceleration
-- Downloading quantized GGUF models using `aria2c` for reliable large file transfers
-- Choosing the right model size for your hardware (three options with trade-off explanations)
-- Running `llama-server` in the background via `tmux` so it does not take over your terminal
-- Installing Unsloth Studio as a local web chat UI via Docker
+- Downloading a quantized GGUF model using `aria2c` for reliable large file transfers
+- Choosing the right model size for your hardware, with three options explained
+- Running `llama-server` in the background via `tmux`
 - Installing and configuring Claude Code to route requests to your local server
-- Fixing a KV cache bug in recent Claude Code versions that causes local inference to run much slower than it should
+- Fixing a KV cache bug in recent Claude Code versions that makes local inference much slower
 
 ## Platform guides
 
-- [`arch_setup.md`](./arch_setup.md) — Arch Linux, CachyOS, and Arch-based distros with NVIDIA GPU (CUDA) or CPU-only setups
-- [`macos_setup.md`](./macos_setup.md) — macOS on Apple Silicon using Metal acceleration
+- [`arch_setup.md`](./arch_setup.md) — Arch Linux, CachyOS, and Arch-based distros. NVIDIA GPU with CUDA or CPU-only.
+- [`macos_setup.md`](./macos_setup.md) — macOS on Apple Silicon. Metal acceleration, no CUDA required.
 
-## Model used
+## Model
 
-The guides use **Qwen3.5-35B-A3B**, a Mixture of Experts model. Despite the 35B parameter
-count, only 3B parameters are active during any inference pass, which is why it fits in
-much less VRAM than a traditional dense 35B model. The Q4_K_XL quant lands around 22 GB
-on disk and runs well on a 24 GB GPU or unified memory Mac. For 12 GB GPUs and 16 GB Macs,
-the guides include options for running the same model with GPU and RAM sharing, or switching
-to the smaller 9B variant that fits fully on device.
+Both guides use **Qwen3.5-35B-A3B**, a Mixture of Experts model. Despite the 35B parameter
+count, only 3B parameters are active during any single inference pass, which is why it runs
+in much less VRAM than a traditional dense 35B model. The Q4_K_XL quant is around 22 GB on
+disk.
 
-## Requirements at a glance
+## Hardware requirements
 
 | | Arch Linux | macOS |
 |---|---|---|
-| GPU | NVIDIA (CUDA) or CPU-only | Apple Silicon (Metal, automatic) |
-| Recommended VRAM / unified memory | 24 GB | 24 GB |
+| GPU | NVIDIA 12 GB+ VRAM (CUDA) | Apple Silicon (Metal, automatic) |
+| Recommended | 24 GB VRAM | 24 GB unified memory |
 | Minimum | 12 GB VRAM + 32 GB RAM | 16 GB unified memory |
-| Docker | `pacman -S docker` + nvidia-container-toolkit | Docker Desktop |
+| Storage | 25 GB free for model | 25 GB free for model |
