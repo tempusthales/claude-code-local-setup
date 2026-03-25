@@ -9,16 +9,37 @@ variable at a local `llama-server` process, Claude Code works the same way it al
 except the model runs on your own hardware. No API key required. No usage bill at the end
 of the month.
 
-The guides cover building `llama.cpp` from source, downloading quantized GGUF models from
-Hugging Face, configuring Claude Code to talk to your local server, and fixing a KV cache
-bug that ships with recent Claude Code versions that causes local inference to run much
-slower than it should.
+## What each guide covers
 
-Two platform guides are included:
+Both guides walk through the full setup end to end:
 
-- [`arch_setup.md`](./arch_setup.md) - Arch Linux, CachyOS, and Arch-based distros with NVIDIA GPU or CPU-only setups
-- [`macos_setup.md`](./macos_setup.md) - macOS on Apple Silicon and Intel, using Metal acceleration
+- Building `llama.cpp` from source with GPU acceleration
+- Downloading quantized GGUF models using `aria2c` for reliable large file transfers
+- Choosing the right model size for your hardware (three options with trade-off explanations)
+- Running `llama-server` in the background via `tmux` so it does not take over your terminal
+- Installing Unsloth Studio as a local web chat UI via Docker
+- Installing and configuring Claude Code to route requests to your local server
+- Fixing a KV cache bug in recent Claude Code versions that causes local inference to run much slower than it should
 
-The examples use Qwen3.5-35B-A3B and GLM-4.7-Flash, both of which fit comfortably in 24 GB
-of VRAM or unified memory. Any model with an OpenAI-compatible API endpoint works the same
-way. Swap the model path and alias and the rest of the setup is identical.
+## Platform guides
+
+- [`arch_setup.md`](./arch_setup.md) — Arch Linux, CachyOS, and Arch-based distros with NVIDIA GPU (CUDA) or CPU-only setups
+- [`macos_setup.md`](./macos_setup.md) — macOS on Apple Silicon using Metal acceleration
+
+## Model used
+
+The guides use **Qwen3.5-35B-A3B**, a Mixture of Experts model. Despite the 35B parameter
+count, only 3B parameters are active during any inference pass, which is why it fits in
+much less VRAM than a traditional dense 35B model. The Q4_K_XL quant lands around 22 GB
+on disk and runs well on a 24 GB GPU or unified memory Mac. For 12 GB GPUs and 16 GB Macs,
+the guides include options for running the same model with GPU and RAM sharing, or switching
+to the smaller 9B variant that fits fully on device.
+
+## Requirements at a glance
+
+| | Arch Linux | macOS |
+|---|---|---|
+| GPU | NVIDIA (CUDA) or CPU-only | Apple Silicon (Metal, automatic) |
+| Recommended VRAM / unified memory | 24 GB | 24 GB |
+| Minimum | 12 GB VRAM + 32 GB RAM | 16 GB unified memory |
+| Docker | `pacman -S docker` + nvidia-container-toolkit | Docker Desktop |
